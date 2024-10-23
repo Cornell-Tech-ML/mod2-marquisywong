@@ -7,7 +7,6 @@ from typing_extensions import Protocol
 
 from . import operators
 from .tensor_data import (
-    MAX_DIMS,
     broadcast_index,
     index_to_position,
     shape_broadcast,
@@ -16,7 +15,7 @@ from .tensor_data import (
 
 if TYPE_CHECKING:
     from .tensor import Tensor
-    from .tensor_data import Index, Shape, Storage, Strides
+    from .tensor_data import Shape, Storage, Strides
 
 
 class MapProto(Protocol):
@@ -181,8 +180,8 @@ class SimpleOps(TensorOps):
     ) -> Callable[["Tensor", int], "Tensor"]:
         """Higher-order tensor reduce function. ::
 
-          fn_reduce = reduce(fn)
-          out = fn_reduce(a, dim)
+            fn_reduce = reduce(fn)
+            out = fn_reduce(a, dim)
 
         Simple version ::
 
@@ -191,9 +190,9 @@ class SimpleOps(TensorOps):
                 for i:
                     out[1, j] = fn(out[1, j], a[i, j])
 
-
         Args:
             fn: function from two floats-to-float to apply
+            start: starting value for the reduction
             a (:class:`TensorData`): tensor to reduce over
             dim (int): int of dim to reduce
 
@@ -261,8 +260,30 @@ def tensor_map(
         in_shape: Shape,
         in_strides: Strides,
     ) -> None:
-        # TODO: Implement for Task 2.3.
-        raise NotImplementedError("Need to implement for Task 2.3")
+        if len(in_shape) > len(out_shape):
+            raise ValueError(
+                "in_shape must be smaller than or equal to out_shape. Actual: {} > {}".format(
+                    len(in_shape), len(out_shape)
+                )
+            )
+
+        out_size = int(np.prod(out_shape))
+
+        # Initialize index arrays
+        out_index = np.zeros_like(out_shape)
+        in_index = np.zeros_like(in_shape)
+
+        for i in range(out_size):
+            # Broadcast index
+            to_index(i, out_shape, out_index)
+            broadcast_index(out_index, out_shape, in_shape, in_index)
+
+            # Get position using strides
+            in_pos = index_to_position(in_index, in_strides)
+            out_pos = index_to_position(out_index, out_strides)
+
+            # Apply the function and store the result
+            out[out_pos] = fn(in_storage[in_pos])
 
     return _map
 
@@ -306,8 +327,26 @@ def tensor_zip(
         b_shape: Shape,
         b_strides: Strides,
     ) -> None:
-        # TODO: Implement for Task 2.3.
-        raise NotImplementedError("Need to implement for Task 2.3")
+        out_size = int(np.prod(out_shape))
+
+        # Initialize index arrays
+        out_index = np.zeros_like(out_shape, dtype=np.int32)
+        a_index = np.zeros_like(a_shape, dtype=np.int32)
+        b_index = np.zeros_like(b_shape, dtype=np.int32)
+
+        for i in range(out_size):
+            # Broadcast index from out_shape to a_shape and b_shape
+            to_index(i, out_shape, out_index)
+            broadcast_index(out_index, out_shape, a_shape, a_index)
+            broadcast_index(out_index, out_shape, b_shape, b_index)
+
+            # Get the position of the current index in the storage arrays
+            a_pos = index_to_position(a_index, a_strides)
+            b_pos = index_to_position(b_index, b_strides)
+            out_pos = index_to_position(out_index, out_strides)
+
+            # Apply the function to the input values and store the result in the output array
+            out[out_pos] = fn(a_storage[a_pos], b_storage[b_pos])
 
     return _zip
 
@@ -337,8 +376,32 @@ def tensor_reduce(
         a_strides: Strides,
         reduce_dim: int,
     ) -> None:
-        # TODO: Implement for Task 2.3.
-        raise NotImplementedError("Need to implement for Task 2.3")
+        # Validate reduce_dim
+        if not (0 <= reduce_dim < len(a_shape)):
+            raise ValueError(
+                f"reduce_dim {reduce_dim} out of range for shape {tuple(a_shape)}."
+            )
+
+        # Calculate total size of the input tensor
+        in_size = int(np.prod(a_shape))
+
+        # Initialize index arrays
+        out_index = np.zeros(len(out_shape), dtype=np.int32)
+        a_index = np.zeros(len(a_shape), dtype=np.int32)
+
+        for flat_idx in range(in_size):
+            # Convert flat index to multi-dimensional index for input tensor
+            to_index(flat_idx, a_shape, a_index)
+
+            # Map to output index by setting reduce_dim to 0
+            out_index[:] = a_index[:]
+            out_index[reduce_dim] = 0  # Dimension reduced to size 1
+
+            # Convert multi-dimensional index to flat index for output tensor
+            out_flat_idx = index_to_position(out_index, out_strides)
+
+            # Apply the reduction function
+            out[out_flat_idx] = fn(out[out_flat_idx], a_storage[flat_idx])
 
     return _reduce
 

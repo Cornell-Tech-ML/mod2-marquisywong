@@ -29,7 +29,7 @@ class ScalarHistory:
     """`ScalarHistory` stores the history of `Function` operations that was
     used to construct the current Variable.
 
-    Attributes
+    Attributes:
     ----------
         last_fn : The last Function that was called.
         ctx : The context for that Function.
@@ -91,6 +91,50 @@ class Scalar:
     def __rmul__(self, b: ScalarLike) -> Scalar:
         return self * b
 
+    def __eq__(self, b: ScalarLike) -> Scalar:
+        """Returns a new Scalar object representing the result of the comparison."""
+        return EQ.apply(self, b)
+
+    def __lt__(self, b: ScalarLike) -> Scalar:
+        """Returns a new Scalar object representing the result of the comparison."""
+        return LT.apply(self, b)
+
+    def __gt__(self, b: ScalarLike) -> Scalar:
+        """Returns a new Scalar object representing the result of the comparison."""
+        return LT.apply(b, self)
+
+    def __sub__(self, b: ScalarLike) -> Scalar:
+        """Returns a new Scalar object representing the result of the subtraction."""
+        return Add.apply(self, -b)
+
+    def __rsub__(self, b: ScalarLike) -> Scalar:
+        """Returns a new Scalar object representing the result of the subtraction."""
+        return Add.apply(Neg.apply(self), b)
+
+    def __neg__(self) -> Scalar:
+        """Returns a new Scalar object representing the negation."""
+        return Neg.apply(self)
+
+    def __add__(self, b: ScalarLike) -> Scalar:
+        """Returns a new Scalar object representing the result of the addition."""
+        return Add.apply(self, b)
+
+    def log(self) -> Scalar:
+        """Returns a new Scalar object representing the result of the logarithm."""
+        return Log.apply(self)
+
+    def exp(self) -> Scalar:
+        """Returns a new Scalar object representing the result of the exponential."""
+        return Exp.apply(self)
+
+    def sigmoid(self) -> Scalar:
+        """Returns a new Scalar object representing the result of the sigmoid function."""
+        return Sigmoid.apply(self)
+
+    def relu(self) -> Scalar:
+        """Returns a new Scalar object representing the result of the rectified linear unit function."""
+        return ReLU.apply(self)
+
     # Variable elements for backprop
 
     def accumulate_derivative(self, x: Any) -> None:
@@ -116,17 +160,38 @@ class Scalar:
 
     @property
     def parents(self) -> Iterable[Variable]:
-        """Get the variables used to create this one."""
         assert self.history is not None
         return self.history.inputs
 
     def chain_rule(self, d_output: Any) -> Iterable[Tuple[Variable, Any]]:
+        """Applies the chain rule to compute the derivatives of the output with respect to the leaf variables.
+
+        This method iterates over the inputs of the last function in the history of this variable. If an input is a leaf variable,
+        it computes the derivative of the output with respect to that input using the backward method of the last function.
+        The derivative is then added to the list of derivatives.
+
+        Args:
+        ----
+            d_output (Any): The derivative of the output with respect to which the chain rule is applied.
+
+        Returns:
+        -------
+            Iterable[Tuple[Variable, Any]]: A list of tuples, where each tuple contains a leaf variable and its derivative.
+
+        """
         h = self.history
         assert h is not None
         assert h.last_fn is not None
         assert h.ctx is not None
 
-        raise NotImplementedError("Need to include this file from past assignment.")
+        derivatives = []
+        derivative = h.last_fn._backward(h.ctx, d_output)
+        if not isinstance(derivative, tuple):
+            derivative = (derivative,)
+
+        for i, parent in enumerate(h.inputs):
+            derivatives.append((parent, derivative[i]))
+        return derivatives
 
     def backward(self, d_output: Optional[float] = None) -> None:
         """Calls autodiff to fill in the derivatives for the history of this object.
@@ -141,17 +206,15 @@ class Scalar:
             d_output = 1.0
         backpropagate(self, d_output)
 
-    raise NotImplementedError("Need to include this file from past assignment.")
-
 
 def derivative_check(f: Any, *scalars: Scalar) -> None:
     """Checks that autodiff works on a python function.
     Asserts False if derivative is incorrect.
 
-    Parameters
-    ----------
-        f : function from n-scalars to 1-scalar.
-        *scalars  : n input scalar values.
+    Args:
+    ----
+        f: function from n-scalars to 1-scalar.
+        *scalars: n input scalar values.
 
     """
     out = f(*scalars)

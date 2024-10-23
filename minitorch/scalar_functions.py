@@ -46,7 +46,7 @@ class ScalarFunction:
                 raw_vals.append(v.data)
             else:
                 scalars.append(minitorch.scalar.Scalar(v))
-                raw_vals.append(v)
+                raw_vals.append(float(v))
 
         # Create the context.
         ctx = Context(False)
@@ -87,6 +87,110 @@ class Log(ScalarFunction):
         return operators.log_back(a, d_output)
 
 
-# To implement.
+class Mul(ScalarFunction):
+    """Multiplication function $f(x, y) = x * y$"""
+
+    @staticmethod
+    def forward(ctx: Context, a: float, b: float) -> float:
+        ctx.save_for_backward(a, b)
+        c = a * b
+        return c
+
+    @staticmethod
+    def backward(ctx: Context, d_output: float) -> Tuple[float, float]:
+        a, b = ctx.saved_values
+        return d_output * b, d_output * a
 
 
+class Inv(ScalarFunction):
+    """Inverse function $f(x) = 1 / x$"""
+
+    @staticmethod
+    def forward(ctx: Context, a: float) -> float:
+        ctx.save_for_backward(a)
+        return 1.0 / a
+
+    @staticmethod
+    def backward(ctx: Context, d_output: float) -> float:
+        (result,) = ctx.saved_values
+        return -d_output / (result * result)
+
+
+class Neg(ScalarFunction):
+    """Negation function $f(x) = -x$"""
+
+    @staticmethod
+    def forward(ctx: Context, a: float) -> float:
+        return operators.neg(a)
+
+    @staticmethod
+    def backward(ctx: Context, d_output: float) -> float:
+        return operators.neg(d_output)
+
+
+class Sigmoid(ScalarFunction):
+    """Sigmoid function $f(x) = 1 / (1 + e^-x)$"""
+
+    @staticmethod
+    def forward(ctx: Context, a: float) -> float:
+        result = 1 / (1 + operators.exp(-a))
+        ctx.save_for_backward(result)
+        return result
+
+    @staticmethod
+    def backward(ctx: Context, d_output: float) -> float:
+        (result,) = ctx.saved_values
+        return d_output * result * (1 - result)
+
+
+class ReLU(ScalarFunction):
+    """ReLU function $f(x) = max(0, x)$"""
+
+    @staticmethod
+    def forward(ctx: Context, a: float) -> float:
+        ctx.save_for_backward(a)
+        return operators.relu(a)
+
+    @staticmethod
+    def backward(ctx: Context, d_output: float) -> float:
+        (result,) = ctx.saved_values
+        return d_output if result > 0 else 0.0
+
+
+class Exp(ScalarFunction):
+    """Exponential function $f(x) = e^x$"""
+
+    @staticmethod
+    def forward(ctx: Context, a: float) -> float:
+        result = operators.exp(a)
+        ctx.save_for_backward(result)
+        return result
+
+    @staticmethod
+    def backward(ctx: Context, d_output: float) -> float:
+        (result,) = ctx.saved_values
+        return operators.mul(result, d_output)
+
+
+class LT(ScalarFunction):
+    """Less than function $f(x, y) = 1$ if x < y, else $f(x, y) = 0$"""
+
+    @staticmethod
+    def forward(ctx: Context, a: float, b: float) -> float:
+        return 1.0 if operators.lt(a, b) else 0.0
+
+    @staticmethod
+    def backward(ctx: Context, d_output: float) -> Tuple[float, float]:
+        return 0.0, 0.0
+
+
+class EQ(ScalarFunction):
+    """Equal to function $f(x, y) = 1$ if x == y, else $f(x, y) = 0$"""
+
+    @staticmethod
+    def forward(ctx: Context, a: float, b: float) -> float:
+        return 1.0 if operators.eq(a, b) else 0.0
+
+    @staticmethod
+    def backward(ctx: Context, d_output: float) -> Tuple[float, float]:
+        return 0.0, 0.0

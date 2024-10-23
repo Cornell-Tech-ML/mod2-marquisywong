@@ -1,5 +1,4 @@
-"""
-Be sure you have minitorch installed in you Virtual Env.
+"""Be sure you have minitorch installed in you Virtual Env.
 >>> pip install -Ue .
 """
 
@@ -11,7 +10,12 @@ import minitorch
 class Network(minitorch.Module):
     def __init__(self, hidden_layers):
         super().__init__()
-        raise NotImplementedError("Need to include this file from past assignment.")
+        in_size = 2
+        out_size = 1
+
+        self.layer1 = Linear(in_size, hidden_layers)
+        self.layer2 = Linear(hidden_layers, hidden_layers)
+        self.layer3 = Linear(hidden_layers, out_size)
 
     def forward(self, x):
         middle = [h.relu() for h in self.layer1.forward(x)]
@@ -40,7 +44,19 @@ class Linear(minitorch.Module):
             )
 
     def forward(self, inputs):
-        raise NotImplementedError("Need to include this file from past assignment.")
+        results = []
+        for j in range(len(self.bias)):
+            # Access the Scalar from the Parameter's value
+            out = self.bias[j].value  # Use .value to access the Scalar
+
+            # Compute the weighted sum of inputs
+            for i in range(len(inputs)):
+                out += (
+                    self.weights[i][j].value * inputs[i]
+                )  # Access .value here as well
+
+            results.append(out)
+        return results
 
 
 def default_log_fn(epoch, total_loss, correct, losses):
@@ -101,6 +117,6 @@ class ScalarTrain:
 if __name__ == "__main__":
     PTS = 50
     HIDDEN = 2
-    RATE = 0.5
-    data = minitorch.datasets["Simple"](PTS)
+    RATE = 0.05
+    data = minitorch.datasets["Diag"](PTS)
     ScalarTrain(HIDDEN).train(data, RATE)
